@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -25,13 +26,14 @@ type Worker struct {
 	alerts *alert.Client
 
 	// alerted — cooldown-память «товар → время последнего алерта».
-	// sync.Map удобен для кейса «мало ключей, много чтений из разных
-	// горутин». Честная оговорка: это память процесса — после рестарта
-	// воркера забудет; в проде такое состояние переносят в базу.
+	// sync.Map удобен для кейса «мало ключей, много чтений из разных горутин».
+	// Честная оговорка: это память процесса — после рестарта воркер
+	// забудет; в проде такое состояние переносят в базу.
 	alerted sync.Map
 }
 
-func New(cfg config.Config, st *store.Store, qc *queue.Client, scr *scraper.Scraper, alerts *alert.Client) *Worker {
+func New(cfg config.Config, st *store.Store, qc *queue.Client,
+	scr *scraper.Scraper, alerts *alert.Client) *Worker {
 	return &Worker{cfg: cfg, st: st, qc: qc, scr: scr, alerts: alerts}
 }
 
@@ -73,10 +75,18 @@ func (w *Worker) handle(ctx context.Context, body []byte) error {
 
 	price, title, currency, err := w.scr.Check(ctx, task.URL, task.Source)
 	if err != nil {
+		// Сбой конкретной страницы (антибот, 404) — логируем и ack'аем:
+		// ядовитые сообщения не должны крутиться вечно. DLQ — отдельная фаза.
 		log.Printf("check product %d: %v", task.ProductID, err)
 		return nil
 	}
 
+	// Сначала читаем ПРОШЛУЮ цену, потом пишем новую — иначе
+	// «прошлой» станет только что вставленная нами же точка.
+	prevPrice, hasPrev, err := w.st.LastPrice(task.ProductID)
+	if err != nil {
+		return err // ошибка БД — инфраструктурная, в requeue
+	}
 	if title != "" {
 		if err := w.st.SetTitle(task.ProductID, title); err != nil {
 			return err
@@ -93,25 +103,35 @@ func (w *Worker) handle(ctx context.Context, body []byte) error {
 
 	log.Printf("product %d: %q = %.2f %s", task.ProductID, title, price, currency)
 
+	// Условия алерта: ниже целевой цены ИЛИ заметное снижение.
 	if price <= task.TargetPrice {
-		w.notify(ctx, task, title, currency, price)
+		w.notify(ctx, task, title, currency, price,
+			fmt.Sprintf("цена упала ниже цели: %.2f %s (цель: %.2f)",
+				price, currency, task.TargetPrice))
+	} else if hasPrev && price < prevPrice*(1-w.cfg.DropPercent/100) {
+		w.notify(ctx, task, title, currency, price,
+			fmt.Sprintf("снижение на %.1f%%: %.2f %s (было %.2f)",
+				(1-price/prevPrice)*100, price, currency, prevPrice))
 	}
 	return nil
 }
 
 // notify — с защитой от спама: не чаще AlertCooldown на товар.
-// Ошибка доставки не роняет обработку: точка цены уже записана,
-// алерт дотянется в следующий тик.
-func (w *Worker) notify(ctx context.Context, task model.CheckTask, title, currency string, price float64) {
-	if last, ok := w.alerted.Load(task.ProductID); ok {
-		if time.Since(last.(time.Time)) < w.cfg.AlertCooldown {
-			return // недавно уже кричали — молчим
+// LoadOrStore атомарна: из четырёх воркеров первым зарегистрирует
+// запись ровно один, остальные увидят его метку и молчат.
+func (w *Worker) notify(ctx context.Context, task model.CheckTask,
+	title, currency string, price float64, reason string) {
+
+	now := time.Now()
+	if last, loaded := w.alerted.LoadOrStore(task.ProductID, now); loaded {
+		if now.Sub(last.(time.Time)) < w.cfg.AlertCooldown {
+			return // недавно кричали — молчим
 		}
+		w.alerted.Store(task.ProductID, now) // cooldown истёк — обновляем
 	}
-	if err := w.alerts.Alert(ctx, task, title, currency, price); err != nil {
+	if err := w.alerts.Alert(ctx, task, title, currency, price, reason); err != nil {
 		log.Printf("notify product %d: %v", task.ProductID, err)
 		return
 	}
-	w.alerted.Store(task.ProductID, time.Now())
-	log.Printf(">>> ALERT sent for product %d (%.2f <= %.2f)", task.ProductID, price, task.TargetPrice)
+	log.Printf(">>> ALERT sent for product %d: %s", task.ProductID, reason)
 }

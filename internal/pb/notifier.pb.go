@@ -29,6 +29,7 @@ type AlertRequest struct {
 	Price         float64                `protobuf:"fixed64,4,opt,name=price,proto3" json:"price,omitempty"`
 	Currency      string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
 	TargetPrice   float64                `protobuf:"fixed64,6,opt,name=target_price,json=targetPrice,proto3" json:"target_price,omitempty"`
+	Reason        string                 `protobuf:"bytes,7,opt,name=reason,proto3" json:"reason,omitempty"` // почему сработало: порог или снижение
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -105,6 +106,13 @@ func (x *AlertRequest) GetTargetPrice() float64 {
 	return 0
 }
 
+func (x *AlertRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 type AlertReply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Delivered     bool                   `protobuf:"varint,1,opt,name=delivered,proto3" json:"delivered,omitempty"`
@@ -161,7 +169,7 @@ var File_notifier_proto protoreflect.FileDescriptor
 
 const file_notifier_proto_rawDesc = "" +
 	"\n" +
-	"\x0enotifier.proto\x12\x02pb\"\xaa\x01\n" +
+	"\x0enotifier.proto\x12\x02pb\"\xc2\x01\n" +
 	"\fAlertRequest\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\x03R\tproductId\x12\x14\n" +
@@ -169,7 +177,8 @@ const file_notifier_proto_rawDesc = "" +
 	"\x03url\x18\x03 \x01(\tR\x03url\x12\x14\n" +
 	"\x05price\x18\x04 \x01(\x01R\x05price\x12\x1a\n" +
 	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12!\n" +
-	"\ftarget_price\x18\x06 \x01(\x01R\vtargetPrice\"@\n" +
+	"\ftarget_price\x18\x06 \x01(\x01R\vtargetPrice\x12\x16\n" +
+	"\x06reason\x18\a \x01(\tR\x06reason\"@\n" +
 	"\n" +
 	"AlertReply\x12\x1c\n" +
 	"\tdelivered\x18\x01 \x01(\bR\tdelivered\x12\x14\n" +

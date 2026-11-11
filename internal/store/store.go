@@ -161,3 +161,21 @@ func (s *Store) SetTitle(productID int64, title string) error {
 }
 
 func (s *Store) Close() error { return s.db.Close() }
+
+// LastPrice возвращает цену последней записанной точки товара
+// или false, если истории ещё нет. Вызывается ДО вставки новой точки —
+// это и есть «прошлая цена» для алерта о снижении.
+func (s *Store) LastPrice(productID int64) (float64, bool, error) {
+	var price float64
+	err := s.db.QueryRow(
+		`SELECT price FROM price_points WHERE product_id = ?
+		 ORDER BY checked_at DESC LIMIT 1`, productID,
+	).Scan(&price)
+	if err == sql.ErrNoRows {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return price, true, nil
+}

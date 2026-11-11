@@ -1,19 +1,24 @@
 # Профили магазинов. Селекторы — CSS, как в querySelector.
-# Демо-источник books проверен; dns и avito — стартовые загадки:
-# уточним селекторы по вашим реальным ссылкам в следующей фазе.
+# price_regex — альтернатива: регэксп с одной группой захвата по тексту страницы.
+# dns убран: сайт отдаёт 401 антиботом без браузера — не поддерживается (см. README).
 sources:
   books:
     name: Books to Scrape (песочница для скрапинга)
     price_selector: "p.price_color"
     title_selector: "div.product_main h1"
     currency: "GBP"
-  dns:
-    name: DNS
-    price_selector: ".product-price__current"
+  citilink:
+    name: Citilink
+    price_regex: '"price"\s*:\s*"?([\d\p{Zs}]{5,})'
     title_selector: "h1"
     currency: "RUB"
   avito:
     name: Avito
     price_selector: "[data-marker='item-view/item-price']"
+    title_selector: "h1"
+    currency: "RUB"
+  cifrus:
+    name: Cifrus
+    price_regex: 'Цена:\s*(\d[\d\p{Zs}]{4,})\s*руб'
     title_selector: "h1"
     currency: "RUB"

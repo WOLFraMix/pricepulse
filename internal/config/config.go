@@ -34,6 +34,10 @@ type Config struct {
 
 	// AlertCooldown — пауза между алертами по одному товару.
 	AlertCooldown time.Duration
+
+	// DropPercent — минимальное снижение цены (в %) для алерта
+	// «подешевело», чтобы не спамить микроколебаниями.
+	DropPercent float64
 }
 
 func Load() Config {
@@ -47,6 +51,7 @@ func Load() Config {
 		NotifierAddr:     getEnv("PW_NOTIFIER_ADDR", "localhost:50051"),
 		SourcesPath:      getEnv("PW_SOURCES_PATH", "./configs/sources.yaml"),
 		AlertCooldown:    parseDuration("PW_ALERT_COOLDOWN", time.Hour),
+		DropPercent:      getFloat("PW_DROP_PERCENT", 3.0),
 	}
 }
 
@@ -70,6 +75,15 @@ func parseInt(key string, def int) int {
 	if v := os.Getenv(key); v != "" {
 		if i, err := strconv.Atoi(v); err == nil {
 			return i
+		}
+	}
+	return def
+}
+
+func getFloat(key string, def float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
 		}
 	}
 	return def

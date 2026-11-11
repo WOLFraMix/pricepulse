@@ -44,6 +44,7 @@ postgres_data/
 # --- прочие локальные файлы ---
 highscore.json
 settings.json
+*.html
 
 # --- OS ---
 .DS_Store

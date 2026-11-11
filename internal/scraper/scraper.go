@@ -15,13 +15,16 @@ import (
 )
 
 // Profile — «паспорт» магазина: как вытащить из его страницы цену и название.
-// Новые магазины добавляются в sources.yaml, а не в код — это принцип,
-// который спасает от ветки if в каждом новом месте.
+// Цена достаётся одним из двух способов (что указано в YAML — то и работает):
+//   - price_selector: CSS-селектор элемента с ценой (Avito, books);
+//   - price_regex:    регэксп с ОДНОЙ группой захвата по всему тексту
+//     страницы (Citilink — цена в JSON, Cifrus — цена в тексте «Цена: N руб»).
 type Profile struct {
 	Name          string `yaml:"name"`
 	PriceSelector string `yaml:"price_selector"`
 	TitleSelector string `yaml:"title_selector"`
 	Currency      string `yaml:"currency"`
+	PriceRegex    string `yaml:"price_regex"`
 }
 
 type Config struct {
@@ -81,8 +84,6 @@ func (s *Scraper) Check(ctx context.Context, url, source string) (price float64,
 	if err != nil {
 		return 0, "", "", err
 	}
-	// Вежливый и честный User-Agent: указываем, кто мы. Сайты,
-	// которые режут ботов, отрежут и нас — и это корректно.
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; PricePulse/1.0; personal price tracker)")
 
 	resp, err := s.client.Do(req)
@@ -99,14 +100,28 @@ func (s *Scraper) Check(ctx context.Context, url, source string) (price float64,
 		return 0, "", "", err
 	}
 
-	// Find возвращает выборку по CSS-селектору (через cascadia),
-	// First берёт первый элемент, Text — текстовое содержимое.
 	title = strings.TrimSpace(doc.Find(p.TitleSelector).First().Text())
-	priceText := strings.TrimSpace(doc.Find(p.PriceSelector).First().Text())
+
+	// Два пути извлечения цены: селектор или регулярка по всему тексту.
+	var priceText string
+	if p.PriceRegex != "" {
+		re, err := regexp.Compile(p.PriceRegex)
+		if err != nil {
+			return 0, title, p.Currency, fmt.Errorf("bad price_regex: %w", err)
+		}
+		m := re.FindStringSubmatch(doc.Text())
+		if len(m) < 2 {
+			return 0, title, p.Currency,
+				fmt.Errorf("price_regex %q: no match", p.PriceRegex)
+		}
+		priceText = m[1]
+	} else {
+		priceText = strings.TrimSpace(doc.Find(p.PriceSelector).First().Text())
+	}
 
 	price, err = parsePrice(priceText)
 	if err != nil {
-		return 0, title, p.Currency, fmt.Errorf("selector %q: %w", p.PriceSelector, err)
+		return 0, title, p.Currency, fmt.Errorf("source %q: %w", source, err)
 	}
 	return price, title, p.Currency, nil
 }

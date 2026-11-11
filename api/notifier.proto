@@ -18,6 +18,7 @@ message AlertRequest {
   double price = 4;
   string currency = 5;
   double target_price = 6;
+  string reason = 7; // почему сработало: порог или снижение
 }
 
 message AlertReply {

@@ -12,16 +12,14 @@ import (
 	"github.com/WOLFraMix/pricepulse/internal/pb"
 )
 
-// Client — обёртка над сгенерированным стабом. Работе в воркере
-// нужен не весь grpc-мир, а один понятный метод Alert.
+// Client — обёртка над сгенерированным стабом.
 type Client struct {
 	conn *grpc.ClientConn
 	api  pb.NotifierClient
 }
 
-// New создаёт клиента. grpc.NewClient (в новых версиях grpc-go
-// он вместо устаревшего grpc.Dial) ленив: реальное соединение
-// откроется при первом вызове, поэтому notifier может стартовать позже.
+// New создаёт клиента. grpc.NewClient ленив: реальное соединение
+// откроется при первом вызове, поэтому порядок запуска сервисов не важен.
 func New(addr string) (*Client, error) {
 	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -31,7 +29,10 @@ func New(addr string) (*Client, error) {
 	return &Client{conn: conn, api: pb.NewNotifierClient(conn)}, nil
 }
 
-func (c *Client) Alert(ctx context.Context, task model.CheckTask, title, currency string, price float64) error {
+// Alert отправляет уведомление. reason — человеческая причина срабатывания.
+func (c *Client) Alert(ctx context.Context, task model.CheckTask,
+	title, currency string, price float64, reason string) error {
+
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -42,9 +43,10 @@ func (c *Client) Alert(ctx context.Context, task model.CheckTask, title, currenc
 		Price:       price,
 		Currency:    currency,
 		TargetPrice: task.TargetPrice,
+		Reason:      reason,
 	})
 	if err != nil {
-		return err // сеть/сервер недоступны — ошибка транспорта
+		return err
 	}
 	if !resp.Delivered {
 		return fmt.Errorf("delivery failed: %s", resp.Error)
