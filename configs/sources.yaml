@@ -1,0 +1,19 @@
+# Профили магазинов. Селекторы — CSS, как в querySelector.
+# Демо-источник books проверен; dns и avito — стартовые загадки:
+# уточним селекторы по вашим реальным ссылкам в следующей фазе.
+sources:
+  books:
+    name: Books to Scrape (песочница для скрапинга)
+    price_selector: "p.price_color"
+    title_selector: "div.product_main h1"
+    currency: "GBP"
+  dns:
+    name: DNS
+    price_selector: ".product-price__current"
+    title_selector: "h1"
+    currency: "RUB"
+  avito:
+    name: Avito
+    price_selector: "[data-marker='item-view/item-price']"
+    title_selector: "h1"
+    currency: "RUB"

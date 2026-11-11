@@ -28,6 +28,12 @@ type Config struct {
 
 	// gRPC-адрес notifier'а для воркера, listen-адрес для самого notifier.
 	NotifierAddr string
+
+	// SourcesPath — файл с профилями магазинов (селекторами).
+	SourcesPath string
+
+	// AlertCooldown — пауза между алертами по одному товару.
+	AlertCooldown time.Duration
 }
 
 func Load() Config {
@@ -39,6 +45,8 @@ func Load() Config {
 		TelegramToken:    getEnv("PW_TG_TOKEN", ""),
 		TelegramChat:     getEnv("PW_TG_CHAT", ""),
 		NotifierAddr:     getEnv("PW_NOTIFIER_ADDR", "localhost:50051"),
+		SourcesPath:      getEnv("PW_SOURCES_PATH", "./configs/sources.yaml"),
+		AlertCooldown:    parseDuration("PW_ALERT_COOLDOWN", time.Hour),
 	}
 }
 

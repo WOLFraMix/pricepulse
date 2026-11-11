@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package pb;
+
+// go_package: куда protoc положит сгенерированный код и какой
+// import path он пропишет. Единственный источник истины о контракте.
+option go_package = "github.com/WOLFraMix/pricepulse/internal/pb";
+
+// Notifier — сервис доставки уведомлений. Воркер — клиент.
+service Notifier {
+  rpc SendAlert (AlertRequest) returns (AlertReply);
+}
+
+message AlertRequest {
+  int64 product_id = 1; // числа — теги полей, не значения!
+  string title = 2;
+  string url = 3;
+  double price = 4;
+  string currency = 5;
+  double target_price = 6;
+}
+
+message AlertReply {
+  bool delivered = 1;
+  string error = 2;
+}

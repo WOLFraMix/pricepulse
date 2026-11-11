@@ -22,9 +22,12 @@ type PricePoint struct {
 }
 
 // CheckTask — сообщение в RabbitMQ: «проверь товар в такое-то время».
+// TargetPrice кладём в задачу: воркер должен сам решить, пора ли алертить,
+// не бегая за товаром в базу — задача самодостаточна.
 type CheckTask struct {
-	ProductID int64     `json:"product_id"`
-	URL       string    `json:"url"`
-	Source    string    `json:"source"`
-	DueAt     time.Time `json:"due_at"` // когда пора проверять
+	ProductID   int64     `json:"product_id"`
+	URL         string    `json:"url"`
+	Source      string    `json:"source"`
+	TargetPrice float64   `json:"target_price"`
+	DueAt       time.Time `json:"due_at"` // когда пора проверять
 }

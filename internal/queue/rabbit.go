@@ -3,6 +3,8 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -120,4 +122,65 @@ func (c *Client) PublishResult(v any) error {
 		return err
 	}
 	return c.publish(ResultsQueue, body)
+}
+
+// Close корректно закрывает канал и соединение.
+func (c *Client) Close() error {
+	if c.ch != nil {
+		_ = c.ch.Close()
+	}
+	return c.conn.Close()
+}
+
+// Consume слушает очередь и зовёт handler на каждое сообщение.
+// Блокируется до ctx.Done() или смерти канала — поэтому воркер
+// дергает его в цикле с переподключением.
+// handler выполняется в той же горутине, что и цикл чтения, —
+// значит, Ack/Nack внутри безопасны (канал не трогают из других горутин).
+func (c *Client) Consume(ctx context.Context, queue string, prefetch int,
+	handler func(ctx context.Context, body []byte) error) error {
+
+	ch, err := c.conn.Channel()
+	if err != nil {
+		return err
+	}
+	defer ch.Close()
+
+	// Qos/prefetch: не больше prefetch неподтверждённых сообщений
+	// на воркера. Дозирование вместо «хапануть всё».
+	if err := ch.Qos(prefetch, 0, false); err != nil {
+		return err
+	}
+
+	msgs, err := ch.Consume(
+		queue,
+		"",    // consumer tag — не нужен
+		false, // autoAck=false: подтверждаем ВРУЧНУЮ после обработки
+		false, // exclusive
+		false, // noLocal
+		false, // noWait
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case d, ok := <-msgs:
+			if !ok {
+				return errors.New("consume channel closed")
+			}
+			if err := handler(ctx, d.Body); err != nil {
+				// Ошибка инфраструктуры (например, базы) — сообщение
+				// возвращается в очередь и будет обработано снова.
+				log.Printf("queue: handler failed, requeue: %v", err)
+				_ = d.Nack(false, true)
+			} else {
+				_ = d.Ack(false) // обработано: брокер удаляет сообщение
+			}
+		}
+	}
 }
