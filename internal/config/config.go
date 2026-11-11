@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -31,17 +32,13 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		RabbitURL:  getEnv("PW_RABBIT_URL", "amqp://guest:guest@localhost:5672/"),
-		SQLitePath: getEnv("PW_SQLITE_PATH", "./data/pricepulse.db"),
-		// TODO-1: parseDuration — читает env как секунды
-		// и даёт дефолт 30 минут. Подсказка: strconv.Atoi, затем
-		// time.Duration(n) * time.Second.
+		RabbitURL:        getEnv("PW_RABBIT_URL", "amqp://guest:guest@localhost:5672/"),
+		SQLitePath:       getEnv("PW_SQLITE_PATH", "./data/pricepulse.db"),
 		MinCheckInterval: parseDuration("PW_MIN_CHECK_INTERVAL", 30*time.Minute),
-		// TODO-2: parseInt — Workers из PW_WORKERS, дефолт 4.
-		Workers:       parseInt("PW_WORKERS", 4),
-		TelegramToken: getEnv("PW_TG_TOKEN", ""),
-		TelegramChat:  getEnv("PW_TG_CHAT", ""),
-		NotifierAddr:  getEnv("PW_NOTIFIER_ADDR", "localhost:50051"),
+		Workers:          parseInt("PW_WORKERS", 4),
+		TelegramToken:    getEnv("PW_TG_TOKEN", ""),
+		TelegramChat:     getEnv("PW_TG_CHAT", ""),
+		NotifierAddr:     getEnv("PW_NOTIFIER_ADDR", "localhost:50051"),
 	}
 }
 
@@ -52,6 +49,20 @@ func getEnv(key, def string) string {
 	return def
 }
 
-// TODO-3: parseDuration и parseInt.
-// parseDuration(key string, def time.Duration) time.Duration
-// parseInt(key string, def int) int
+func parseDuration(key string, def time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
+	}
+	return def
+}
+
+func parseInt(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if i, err := strconv.Atoi(v); err == nil {
+			return i
+		}
+	}
+	return def
+}
