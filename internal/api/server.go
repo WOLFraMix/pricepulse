@@ -31,6 +31,7 @@ func New(st *store.Store) *Server {
 		api.POST("/products", s.createProduct)
 		api.GET("/products", s.listProducts)
 		api.GET("/products/:id/history", s.history)
+		api.DELETE("/products/:id", s.deleteProduct)
 	}
 	return s
 }
@@ -109,4 +110,17 @@ func (s *Server) history(c *gin.Context) {
 
 func (s *Server) Run(addr string) error {
 	return s.r.Run(addr)
+}
+
+func (s *Server) deleteProduct(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := s.store.DeleteProduct(id); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": id})
 }

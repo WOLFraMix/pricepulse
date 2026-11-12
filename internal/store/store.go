@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -178,4 +179,18 @@ func (s *Store) LastPrice(productID int64) (float64, bool, error) {
 		return 0, false, err
 	}
 	return price, true, nil
+}
+
+// DeleteProduct выключает товар: active = 0. Историю не трогаем —
+// она может пригодиться, если товар вернут. Планировщик товары с
+// active=0 не публикует, воркер их больше не получает.
+func (s *Store) DeleteProduct(id int64) error {
+	res, err := s.db.Exec(`UPDATE products SET active = 0 WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("product %d not found", id)
+	}
+	return nil
 }
