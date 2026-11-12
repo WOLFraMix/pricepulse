@@ -6,7 +6,6 @@ services:
       - "15672:15672"  # management UI
     volumes:
       - rabbit-data:/var/lib/rabbitmq
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -32,7 +31,6 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-    restart: unless-stopped
 
   worker:
     build: .
@@ -51,7 +49,6 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-    restart: unless-stopped
 
   notifier:
     build: .
@@ -60,7 +57,6 @@ services:
       PW_NOTIFIER_ADDR: ":50051"
       PW_TG_TOKEN: ${PW_TG_TOKEN}
       PW_TG_CHAT: ${PW_TG_CHAT}
-    restart: unless-stopped
 
 volumes:
   rabbit-data:

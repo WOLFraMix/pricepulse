@@ -20,6 +20,10 @@ FROM alpine:3.22
 RUN apk add --no-cache ca-certificates tzdata \
     && adduser -D -u 10001 appuser
 
+# Каталог для SQLite: том монтируется сюда, и владелец — appuser,
+# иначе процесс от appuser не сможет создать файл БД (SQLITE_CANTOPEN 14)
+RUN mkdir -p /data && chown appuser:appuser /data
+
 WORKDIR /app
 COPY --from=build /out/  /app/
 COPY configs/            /app/configs/

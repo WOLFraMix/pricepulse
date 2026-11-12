@@ -1,0 +1,43 @@
+name: Release
+
+on:
+    push:
+        tags: ["v*"]
+
+permissions:
+    contents: write
+    packages: write
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-go@v5
+              with:
+                  go-version: "1.27"
+                  cache: true
+
+            - name: Build binaries
+              run: |
+                  mkdir -p dist
+                  $env:GOOS='linux';   $env:GOARCH='amd64'; go build -o dist/pricepulse-linux-amd64 ./cmd/api
+                  $env:GOOS='windows'; $env:GOARCH='amd64'; go build -o dist/pricepulse-windows.exe ./cmd/api
+              shell: pwsh
+
+            - name: Log in to GHCR
+              run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
+
+            - name: Build and push image
+              run: |
+                  IMAGE=ghcr.io/${{ github.repository_owner }}/pricepulse
+                  docker build -t $IMAGE:${{ github.ref_name }} -t $IMAGE:latest .
+                  docker push $IMAGE:${{ github.ref_name }}
+                  docker push $IMAGE:latest
+
+            - name: GitHub Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  files: dist/*
+                  generate_release_notes: true
