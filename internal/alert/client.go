@@ -33,7 +33,7 @@ func New(addr string) (*Client, error) {
 func (c *Client) Alert(ctx context.Context, task model.CheckTask,
 	title, currency string, price float64, reason string) error {
 
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
 	resp, err := c.api.SendAlert(ctx, &pb.AlertRequest{

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/html/charset"
@@ -63,9 +64,17 @@ func New(cfg Config) *Scraper {
 // digits вырезает из текста вида «2 990 ₽» или «£51.77» первое число.
 var digits = regexp.MustCompile(`[0-9]+(?:[.,][0-9]+)?`)
 
-// parsePrice превращает текст цены в число. Нюансы: пробелы-разделители
-// тысяч («2 990»), запятая как десятичный разделитель, символ валюты.
+// parsePrice превращает текст цены в число. Нюансы: разделители тысяч
+// («219 999» — с обычным или неразрывным пробелом; без вырезания
+// пробелов «219 999» распознаётся как «219» — реальный кейс с Авито),
+// запятая как десятичный разделитель, символ валюты.
 func parsePrice(s string) (float64, error) {
+	s = strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return -1 // вырезаем ВСЕ пробелы, включая NBSP
+		}
+		return r
+	}, s)
 	m := digits.FindString(s)
 	if m == "" {
 		return 0, fmt.Errorf("price not found in %q", s)
