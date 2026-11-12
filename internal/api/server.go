@@ -20,6 +20,7 @@ type Server struct {
 // New — сборка: движок, маршруты, middleware.
 func New(st *store.Store) *Server {
 	r := gin.Default()
+	r.SetTrustedProxies(nil)
 	// gin.Default() = движок + два middleware: Logger (каждый запрос
 	// в лог с временем и статусом) и Recovery (паника в обработчике
 	// не роняет сервис — превращается в HTTP 500).

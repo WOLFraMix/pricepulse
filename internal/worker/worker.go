@@ -130,6 +130,9 @@ func (w *Worker) notify(ctx context.Context, task model.CheckTask,
 		w.alerted.Store(task.ProductID, now) // cooldown истёк — обновляем
 	}
 	if err := w.alerts.Alert(ctx, task, title, currency, price, reason); err != nil {
+		// Неудача не тратит cooldown: удаляем метку, чтобы следующий
+		// тик имел право попробовать снова.
+		w.alerted.Delete(task.ProductID)
 		log.Printf("notify product %d: %v", task.ProductID, err)
 		return
 	}

@@ -19,6 +19,6 @@ sources:
     currency: "RUB"
   cifrus:
     name: Cifrus
-    price_regex: 'Цена:\s*(\d[\d\p{Zs}]{4,})\s*руб'
+    price_regex: "item_name'[^}]*?'price'\\s*:\\s*(\\d+)"
     title_selector: "h1"
     currency: "RUB"

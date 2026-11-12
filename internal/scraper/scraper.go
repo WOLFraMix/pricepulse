@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/net/html/charset"
 	"gopkg.in/yaml.v3"
 )
 
@@ -95,7 +96,15 @@ func (s *Scraper) Check(ctx context.Context, url, source string) (price float64,
 		return 0, "", "", fmt.Errorf("http %d from %s", resp.StatusCode, url)
 	}
 
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	// Некоторые сайты (Cifrus) отдают HTML в Windows-1251. Без
+	// перекодировки в title попадают сырые cp1251-байты — невалидный
+	// UTF-8, который gRPC отказывается маршалить. charset.NewReader
+	// определяет кодировку и отдаёт нам уже UTF-8.
+	utf8Body, err := charset.NewReader(resp.Body, resp.Header.Get("Content-Type"))
+	if err != nil {
+		return 0, "", "", err
+	}
+	doc, err := goquery.NewDocumentFromReader(utf8Body)
 	if err != nil {
 		return 0, "", "", err
 	}
