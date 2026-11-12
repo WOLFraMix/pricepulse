@@ -20,13 +20,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("store: %v", err)
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 
 	qc, err := queue.NewClient(cfg.RabbitURL)
 	if err != nil {
 		log.Fatalf("queue: %v", err)
 	}
-	defer qc.Close()
+	defer func() { _ = qc.Close() }()
 
 	if err := qc.DeclareReady(); err != nil {
 		log.Fatalf("declare: %v", err)

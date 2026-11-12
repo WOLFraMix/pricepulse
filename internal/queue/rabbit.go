@@ -34,7 +34,7 @@ func NewClient(url string) (*Client, error) {
 	}
 	ch, err := conn.Channel()
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, err
 	}
 	return &Client{conn: conn, ch: ch}, nil
@@ -144,7 +144,7 @@ func (c *Client) Consume(ctx context.Context, queue string, prefetch int,
 	if err != nil {
 		return err
 	}
-	defer ch.Close()
+	defer func() { _ = ch.Close() }()
 
 	// Qos/prefetch: не больше prefetch неподтверждённых сообщений
 	// на воркера. Дозирование вместо «хапануть всё».

@@ -35,11 +35,11 @@ func New(path string) (*Store, error) {
 	// busy_timeout: если две горутины пишут одновременно, вторая
 	// подождёт до 5 секунд вместо мгновенной ошибки SQLITE_BUSY.
 	if _, err := db.Exec(`PRAGMA busy_timeout = 5000`); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	if _, err := db.Exec(`PRAGMA journal_mode = WAL`); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS price_points (
 CREATE INDEX IF NOT EXISTS idx_points_product
 	ON price_points(product_id, checked_at);
 `); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	return &Store{db: db}, nil
@@ -93,7 +93,7 @@ func (s *Store) Products(activeOnly bool) ([]model.Product, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	// Инициализируем слайс сразу: пустой результат уедет в JSON
 	// как [], а не null — клиенту приятнее.
@@ -140,7 +140,7 @@ func (s *Store) History(productID int64, limit int) ([]model.PricePoint, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := []model.PricePoint{}
 	for rows.Next() {

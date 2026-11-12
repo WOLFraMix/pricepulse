@@ -23,7 +23,7 @@ type Server struct {
 func New(st *store.Store) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
-	r.SetTrustedProxies(nil)
+	_ = r.SetTrustedProxies(nil)
 	// gin.Default() = движок + два middleware: Logger (каждый запрос
 	// в лог с временем и статусом) и Recovery (паника в обработчике
 	// не роняет сервис — превращается в HTTP 500).
