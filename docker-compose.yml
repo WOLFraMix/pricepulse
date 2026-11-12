@@ -2,9 +2,66 @@ services:
   rabbitmq:
     image: rabbitmq:4-management
     ports:
-      - "5672:5672"   # AMQP — протокол для приложений
-      - "15672:15672" # management UI — веб-интерфейс брокера
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # management UI
     volumes:
       - rabbit-data:/var/lib/rabbitmq
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  api:
+    build: .
+    command: ["/app/api"]
+    ports:
+      - "8080:8080"
+    environment:
+      PW_RABBIT_URL: amqp://guest:guest@rabbitmq:5672/
+      PW_SQLITE_PATH: /data/pricepulse.db
+      PW_MIN_CHECK_INTERVAL: 30m
+      PW_WORKERS: "4"
+      PW_NOTIFIER_ADDR: notifier:50051
+      PW_SOURCES_PATH: /app/configs/sources.yaml
+    volumes:
+      - ./configs:/app/configs:ro
+      - data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["/app/worker"]
+    environment:
+      PW_RABBIT_URL: amqp://guest:guest@rabbitmq:5672/
+      PW_SQLITE_PATH: /data/pricepulse.db
+      PW_WORKERS: "4"
+      PW_NOTIFIER_ADDR: notifier:50051
+      PW_SOURCES_PATH: /app/configs/sources.yaml
+      PW_ALERT_COOLDOWN: 1h
+      PW_DROP_PERCENT: "3.0"
+    volumes:
+      - ./configs:/app/configs:ro
+      - data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notifier:
+    build: .
+    command: ["/app/notifier"]
+    environment:
+      PW_NOTIFIER_ADDR: ":50051"
+      PW_TG_TOKEN: ${PW_TG_TOKEN}
+      PW_TG_CHAT: ${PW_TG_CHAT}
+    restart: unless-stopped
+
 volumes:
   rabbit-data:
+  data:

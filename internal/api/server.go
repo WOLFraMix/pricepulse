@@ -19,6 +19,7 @@ type Server struct {
 
 // New — сборка: движок, маршруты, middleware.
 func New(st *store.Store) *Server {
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 	r.SetTrustedProxies(nil)
 	// gin.Default() = движок + два middleware: Logger (каждый запрос
