@@ -117,22 +117,27 @@ func (w *Worker) handle(ctx context.Context, body []byte) error {
 }
 
 // notify — с защитой от спама: не чаще AlertCooldown на товар.
-// LoadOrStore атомарна: из четырёх воркеров первым зарегистрирует
-// запись ровно один, остальные увидят его метку и молчат.
+// Право на алерт — атомарный CAS-переход: из нескольких конкурентных
+// воркеров, увидевших истёкший cooldown, отправит ровно один,
+// остальные молчат (иначе возможен дубликат уведомления).
 func (w *Worker) notify(ctx context.Context, task model.CheckTask,
 	title, currency string, price float64, reason string) {
 
 	now := time.Now()
-	if last, loaded := w.alerted.LoadOrStore(task.ProductID, now); loaded {
+	last, loaded := w.alerted.LoadOrStore(task.ProductID, now)
+	if loaded {
 		if now.Sub(last.(time.Time)) < w.cfg.AlertCooldown {
 			return // недавно кричали — молчим
 		}
-		w.alerted.Store(task.ProductID, now) // cooldown истёк — обновляем
+		// Cooldown истёк: атомарно забираем право на алерт.
+		if !w.alerted.CompareAndSwap(task.ProductID, last, now) {
+			return // другой воркер забрал право первым
+		}
 	}
 	if err := w.alerts.Alert(ctx, task, title, currency, price, reason); err != nil {
-		// Неудача не тратит cooldown: удаляем метку, чтобы следующий
-		// тик имел право попробовать снова.
-		w.alerted.Delete(task.ProductID)
+		// Неудача не тратит cooldown: откатываем метку к прежнему
+		// значению, чтобы следующий тик мог попробовать снова.
+		w.alerted.CompareAndSwap(task.ProductID, now, last)
 		log.Printf("notify product %d: %v", task.ProductID, err)
 		return
 	}

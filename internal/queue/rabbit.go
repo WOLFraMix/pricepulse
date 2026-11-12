@@ -89,21 +89,21 @@ func (c *Client) DeclareReady() error {
 // PublishTask кладёт задание в очередь. JSON — да, не protobuf:
 // внутри системы мы просты, а protobuf оставим там, где он оправдан —
 // в контракте между сервисами (gRPC).
-func (c *Client) PublishTask(v any) error {
+func (c *Client) PublishTask(ctx context.Context, v any) error {
 	body, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
 	// publish задание в очередь задач.
-	return c.publish(TasksQueue, body)
+	return c.publish(ctx, TasksQueue, body)
 }
 
 // publish — общий механизм отправки: сериализация уже сделана,
-// здесь только маршрутизация. Отдельный приватный метод пригодится
-// для результатов в PublishResult.
-func (c *Client) publish(routingKey string, body []byte) error {
+// здесь только маршрутизация. Контекст обязателен: при зависшем
+// TCP-соединении публикация с context.Background() висела бы вечно.
+func (c *Client) publish(ctx context.Context, routingKey string, body []byte) error {
 	return c.ch.PublishWithContext(
-		context.Background(),
+		ctx,
 		ExchangeName, // в какой exchange
 		routingKey,   // ярлык: direct exchange доставит в бинженную очередь
 		false,        // mandatory — false: нет биндинга — сообщение тихо теряется
@@ -116,12 +116,12 @@ func (c *Client) publish(routingKey string, body []byte) error {
 	)
 }
 
-func (c *Client) PublishResult(v any) error {
+func (c *Client) PublishResult(ctx context.Context, v any) error {
 	body, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	return c.publish(ResultsQueue, body)
+	return c.publish(ctx, ResultsQueue, body)
 }
 
 // Close корректно закрывает канал и соединение.
@@ -175,9 +175,12 @@ func (c *Client) Consume(ctx context.Context, queue string, prefetch int,
 			}
 			if err := handler(ctx, d.Body); err != nil {
 				// Ошибка инфраструктуры (например, базы) — сообщение
-				// возвращается в очередь и будет обработано снова.
+				// возвращается в очередь. Повторная доставка без
+				// requeue: иначе устойчивый сбой (лежащая БД) создаёт
+				// мгновенный бесконечный цикл redelivery, который
+				// долбит базу и логи без паузы.
 				log.Printf("queue: handler failed, requeue: %v", err)
-				_ = d.Nack(false, true)
+				_ = d.Nack(false, !d.Redelivered)
 			} else {
 				_ = d.Ack(false) // обработано: брокер удаляет сообщение
 			}

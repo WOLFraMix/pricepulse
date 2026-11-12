@@ -1,8 +1,10 @@
 package api
 
 import (
+	"errors"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -52,6 +54,15 @@ func (s *Server) createProduct(c *gin.Context) {
 	// При ошибке — 400 с описанием, обработчик не падает.
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// SSRF-защита: воркер будет скачивать этот URL. Разрешаем только
+	// абсолютные http/https-ссылки — без схемы и хоста запрос не имеет
+	// смысла, а прочие схемы (file:, gopher: и т.п.) отклоняем сразу.
+	if u, err := url.Parse(req.URL); err != nil ||
+		(u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid url"})
 		return
 	}
 
@@ -121,7 +132,14 @@ func (s *Server) deleteProduct(c *gin.Context) {
 		return
 	}
 	if err := s.store.DeleteProduct(id); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		// Не найден — 404; прочее (например, сбой БД) — 500 без
+		// утечки текста внутренней ошибки клиенту.
+		if errors.Is(err, store.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		log.Printf("delete product %d: %v", id, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"deleted": id})

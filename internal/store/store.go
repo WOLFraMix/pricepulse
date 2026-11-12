@@ -2,7 +2,7 @@ package store
 
 import (
 	"database/sql"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -181,6 +181,11 @@ func (s *Store) LastPrice(productID int64) (float64, bool, error) {
 	return price, true, nil
 }
 
+// ErrNotFound — товар с таким id отсутствует. Sentinel-ошибка:
+// вызывающий код различает её через errors.Is и отдаёт HTTP 404,
+// не смешивая с инфраструктурными сбоями.
+var ErrNotFound = errors.New("not found")
+
 // DeleteProduct выключает товар: active = 0. Историю не трогаем —
 // она может пригодиться, если товар вернут. Планировщик товары с
 // active=0 не публикует, воркер их больше не получает.
@@ -189,8 +194,12 @@ func (s *Store) DeleteProduct(id int64) error {
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("product %d not found", id)
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
 	}
 	return nil
 }

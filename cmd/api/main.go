@@ -59,9 +59,13 @@ func main() {
 						TargetPrice: p.TargetPrice,
 						DueAt:       time.Now(),
 					}
-					if err := qc.PublishTask(task); err != nil {
+					// Таймаут на публикацию: при зависшем AMQP-соединении
+					// тик планировщика не должен виснуть навечно.
+					pubCtx, pubCancel := context.WithTimeout(ctx, 5*time.Second)
+					if err := qc.PublishTask(pubCtx, task); err != nil {
 						log.Printf("scheduler: publish %d: %v", p.ID, err)
 					}
+					pubCancel()
 				}
 				if len(products) > 0 {
 					log.Printf("scheduler: published %d tasks", len(products))
